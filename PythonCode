@@ -1,0 +1,199 @@
+import random
+import matplotlib.pyplot as plt
+
+# Inventory
+inventory = {
+    "top": [
+        ("T-shirt", 0.0, "Casual", "Bright", 5),
+        ("Formal Shirt", 120.0, "Business", "Dark", 3),
+        ("Polo Shirt", 80.0, "Sportswear", "Bright", 4),
+        ("Evening Blouse", 150.0, "Evening", "Dark", 3),
+        ("Sweater", 0.0, "Casual", "Dark", 5),
+        ("Hoodie", 60.0, "Casual", "Bright", 4),
+        ("Tank Top", 0.0, "Sportswear", "Bright", 4),
+        ("Silk Blouse", 200.0, "Evening", "Dark", 3)
+    ],
+    "bottom": [
+        ("Jeans", 0.0, "Casual", "Dark", 4),
+        ("Formal Trousers", 150.0, "Business", "Dark", 3),
+        ("Sports Shorts", 0.0, "Sportswear", "Bright", 5),
+        ("Skirt", 100.0, "Evening", "Bright", 3),
+        ("Chinos", 90.0, "Business", "Dark", 4),
+        ("Leggings", 60.0, "Casual", "Dark", 5),
+        ("Athletic Pants", 80.0, "Sportswear", "Bright", 5),
+        ("Evening Gown", 250.0, "Evening", "Dark", 1)
+    ],
+    "shoes": [
+        ("Sneakers", 0.0, "Sportswear", "Bright", 5),
+        ("Leather Shoes", 180.0, "Business", "Dark", 2),
+        ("Running Shoes", 120.0, "Sportswear", "Bright", 5),
+        ("Ballet Flats", 90.0, "Casual", "Dark", 4),
+        ("High Heels", 250.0, "Evening", "Dark", 2),
+        ("Sandals", 0.0, "Casual", "Bright", 5),
+        ("Loafers", 150.0, "Business", "Dark", 3),
+        ("Evening Pumps", 220.0, "Evening", "Bright", 2)
+    ],
+    "neck": [
+        ("Silk Scarf", 70.0, "Business", "Dark", 3),
+        ("Sports Scarf", 0.0, "Sportswear", "Bright", 4),
+        ("Necklace", 220.0, "Evening", "Dark", 3),
+        ("Casual Scarf", 0.0, "Casual", "Bright", 5),
+        ("Bow Tie", 80.0, "Evening", "Dark", 3),
+        ("Athletic Headband", 50.0, "Sportswear", "Bright", 5),
+        ("Diamond Necklace", 750.0, "Evening", "Bright", 3),
+        ("Choker", 0.0, "Evening", "Dark", 4)
+    ],
+    "purse": [
+        ("Clutch Bag", 100.0, "Evening", "Dark", 3),
+        ("Canvas Bag", 0.0, "Casual", "Bright", 5),
+        ("Leather Briefcase", 180.0, "Business", "Dark", 1),
+        ("Sports Backpack", 80.0, "Sportswear", "Bright", 5),
+        ("Tote Bag", 0.0, "Casual", "Bright", 4),
+        ("Wristlet", 150.0, "Evening", "Dark", 3),
+        ("Fanny Pack", 50.0, "Sportswear", "Bright", 4),
+        ("Elegant Handbag", 250.0, "Evening", "Dark", 3)
+    ]
+}
+
+# Initialize population
+def init_population(pop_size):
+    population = []
+    for _ in range(pop_size):
+        individual = {category: random.choice(items) for category, items in inventory.items()}
+        population.append(individual)
+    return population
+
+# Fitness score function
+def fitness_score(individual, dress_code, color_palette, budget, comfort_level):
+    dress_code_score = sum(1 for item in individual.values() if item[2].upper() == dress_code) / len(inventory)
+    color_score = sum(1 for item in individual.values() if item[3].upper() == color_palette) / len(inventory)
+    comfort_score = sum(item[4] for item in individual.values()) / (len(inventory) * 5)
+    total_price = sum(item[1] for item in individual.values())
+    budget_score = 1 if total_price <= budget else 0
+
+    weights = {'dress_code': 0.35, 'color': 0.15, 'comfort': 0.15, 'budget': 0.35}
+    fitness_value = (
+        weights['dress_code'] * dress_code_score +
+        weights['color'] * color_score +
+        weights['comfort'] * comfort_score +
+        weights['budget'] * budget_score
+    )
+    return fitness_value
+
+# Binary tournament selection
+def binary_tournament_selection(population, target_code, target_color, budget, comfort):
+    def select():
+        a, b = random.sample(population, 2)
+        fitness_a = fitness_score(a, target_code, target_color, budget, comfort)
+        fitness_b = fitness_score(b, target_code, target_color, budget, comfort)
+        return a if fitness_a > fitness_b else b
+    return select(), select()
+
+# Crossover
+def crossover(parent1, parent2):
+    points = sorted(random.sample(range(len(parent1)), 2))
+    child1, child2 = {}, {}
+    categories = list(parent1.keys())
+    for i, category in enumerate(categories):
+        if points[0] <= i < points[1]:
+            child1[category] = parent2[category]
+            child2[category] = parent1[category]
+        else:
+            child1[category] = parent1[category]
+            child2[category] = parent2[category]
+    return child1, child2
+
+# Mutation
+def mutate(individual, mutation_rate=0.1):
+    if random.random() < mutation_rate:
+        category = random.choice(list(individual.keys()))
+        individual[category] = random.choice(inventory[category])
+    return individual
+
+# Replacement
+def replacement(population, children):
+    combined = population + children
+    combined.sort(key=lambda ind: fitness_score(ind, target_code, target_color, budget, comfort), reverse=True)
+    return combined[:len(population)]
+
+# Genetic Algorithm with Termination Condition
+def genetic_algorithm(pop_size, generations, mutation_rate, target_code, target_color, budget, comfort):
+    population = init_population(pop_size)
+    fitness_over_time = []
+
+    for generation in range(generations):
+        new_population = []
+        for _ in range(pop_size // 2):
+            parent1, parent2 = binary_tournament_selection(population, target_code, target_color, budget, comfort)
+            child1, child2 = crossover(parent1, parent2)
+            new_population.extend([mutate(child1, mutation_rate), mutate(child2, mutation_rate)])
+        population = replacement(population, new_population)
+
+        # Track the best individual in the population
+        best_individual = max(population, key=lambda ind: fitness_score(ind, target_code, target_color, budget, comfort))
+        best_fitness = fitness_score(best_individual, target_code, target_color, budget, comfort)
+        fitness_over_time.append(best_fitness)
+
+        # Termination Condition: Stop if the error is less than 10^-8
+        if abs(best_fitness - 1.0) < 1e-8:
+            print(f"Terminated early at generation {generation + 1} due to convergence to optimal solution.")
+            break
+
+    return fitness_over_time, best_individual
+
+# Genetic Algorithm for multiple runs
+def genetic_algorithm_multiple_runs(runs, pop_size, generations, mutation_rate, target_code, target_color, budget, comfort):
+    all_fitness_runs = []
+
+    for run in range(runs):
+        fitness_over_time, best_outfit = genetic_algorithm(pop_size, generations, mutation_rate, target_code, target_color, budget, comfort)
+        all_fitness_runs.append(fitness_over_time)
+
+        # Display the selected outfit for this run
+        print(f"\nRun {run + 1} - Best Outfit Selection:\n")
+        for category, item in best_outfit.items():
+            print(f"{category.capitalize()}: {item[0]} (SAR {item[1]}, {item[2]}, {item[3]}, Comfort: {item[4]})")
+
+        # Calculate and display mean fitness for this run
+        mean_fitness = sum(fitness_over_time) / len(fitness_over_time)
+
+        # Plotting the fitness for this run
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, len(fitness_over_time) + 1), fitness_over_time, label="Fitness Over Generations", linestyle='-')
+        plt.title(f"Fitness Over Generations (Run {run + 1}) ")
+        plt.xlabel("Generation")
+        plt.ylabel("Fitness")
+        plt.grid()
+        plt.legend()
+        plt.show()
+        print ("")
+
+    # Calculate average fitness for each generation
+    avg_fitness_per_generation = [
+        sum(fitness[g] for fitness in all_fitness_runs) / runs for g in range(len(all_fitness_runs[0]))
+    ]
+
+
+
+
+    return avg_fitness_per_generation
+
+# User input for preferences
+print("Welcome to PerfectFit! Let's find your perfect outfit.")
+target_code = input("Enter dress code (Casual, Sportswear, Business, Evening): ").strip().upper()
+target_color = input("Enter color palette (Dark, Bright): ").strip().upper()
+budget = float(input("Enter your budget (SAR): "))
+comfort = int(input("Enter comfort level (1 to 5): "))
+
+# Parameters
+pop_size = 10
+generations = 50
+mutation_rate = 0.1
+runs = 20
+
+# Execute GA for multiple runs to calculate the average fitness
+avg_fitness_per_generation = genetic_algorithm_multiple_runs(runs, pop_size, generations, mutation_rate, target_code, target_color, budget, comfort)
+
+# Calculate and print the mean fitness across all runs
+mean_fitness = sum(avg_fitness_per_generation) / len(avg_fitness_per_generation)
+print(f"\nMean Fitness Over Generations: {mean_fitness:.4f}")
